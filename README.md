@@ -1,6 +1,10 @@
 # netcord
 A simple Python implementation that would allow your users/clients/customers to perform ```ping```, ```traceroute```, and ```dig``` on a Discord channel through your own infrastructures.
 
+<p align="center">
+  <img src="https://bucket.sc.sb/netcord-assets/cover.png" alt="">
+</p>
+
 ## Features
 - ICMP ping a target (Dual stack)
 - Traceroute to a target (Dual stack)

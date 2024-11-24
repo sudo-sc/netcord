@@ -18,6 +18,9 @@ def get_config(filename="config.yaml"):
 
 cfg = get_config()
 
+if client_id := cfg["client_id"]:
+    logging.info(f"\n\nUse this link to invite the bot to your server:\nhttps://discord.com/api/oauth2/authorize?client_id={client_id}&permissions=2147559424&integration_type=0&scope=applications.commands+bot\n")
+
 intents = discord.Intents.default()
 
 bot = discord.Bot(intents=intents)
@@ -62,7 +65,8 @@ async def run_command(ctx, command, description):
     logging.info(f"User {ctx.author} requested to {description} in channel {ctx.channel.id}")
 
     if ctx.channel.id not in cfg['allowed_channel_ids']:
-        await ctx.respond("This command cannot be used in this channel.", ephemeral=True)
+        response_message = await ctx.respond("This command cannot be used in this channel.", ephemeral=True)
+        await schedule_deletion(response_message)
         return
 
     try:

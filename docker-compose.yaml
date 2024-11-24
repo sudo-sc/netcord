@@ -1,0 +1,8 @@
+services:
+  container:
+    build: .
+    container_name: sudo-sc.netcord
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - ./:/usr/src/app:ro

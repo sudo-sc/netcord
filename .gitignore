@@ -1,8 +1,10 @@
 *
 
 !.gitignore
+!Dockerfile
 !*.md
 !*.py
 !config-example.yaml
+!docker-compose.yaml
 
 !requirements.txt

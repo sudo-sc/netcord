@@ -5,6 +5,7 @@ import logging
 import re
 import httpx
 import asyncio
+import dns.message
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,15 +45,15 @@ def is_valid_v6_input(input):
 def is_valid_dualstack_input(input):
     return is_valid_ipv4(input) or is_valid_ipv6(input) or is_valid_fqdn(input)
 
-async def schedule_deletion(response, channel_id):
+async def schedule_deletion(message):
     """Schedule the deletion of a message after a specified time."""
     delete_time = cfg.get('message_deletion_time', 30)
     if delete_time > 0:
-        logging.info(f"Scheduling deletion for response in channel {channel_id} in {delete_time} seconds")
+        logging.info(f"Scheduling deletion for response in channel {message.channel.id} in {delete_time} seconds")
         await asyncio.sleep(delete_time)
         try:
-            await response.delete()
-            logging.info(f"Deleted response message from channel {channel_id}")
+            await message.delete()
+            logging.info(f"Deleted response message from channel {message.channel.id}")
         except discord.NotFound:
             logging.info("Message was already deleted.")
 
@@ -68,90 +69,100 @@ async def run_command(ctx, command, description):
         # Execute the command and capture the output
         output = subprocess.run(command, capture_output=True, text=True, check=True)
         logging.info(f"Command output: {output.stdout}")
-        response = await ctx.respond(f'{description.capitalize()} result:\n```{output.stdout}```', ephemeral=False)
-        await schedule_deletion(response, ctx.channel.id)
+        response_message = await ctx.send_followup(f'{description.capitalize()} result:\n```{output.stdout}```')
+        await schedule_deletion(response_message)
     except subprocess.CalledProcessError as e:
         logging.error(f"Command failed with error: {e.stderr}")
-        response = await ctx.respond(f'Command failed with error: {e.stderr}', ephemeral=False)
-        await schedule_deletion(response, ctx.channel.id)
+        response_message = await ctx.send_followup(f'Command failed with error: {e.stderr}')
+        await schedule_deletion(response_message)
     except Exception as e:
         logging.error(f"Error executing {description}: {e}")
-        response = await ctx.respond(f'An error occurred: {e}', ephemeral=False)
-        await schedule_deletion(response, ctx.channel.id)
+        response_message = await ctx.send_followup(f'An error occurred: {e}')
+        await schedule_deletion(response_message)
 
 async def dig_record(ctx, domain, record_type):
+    await ctx.defer()  # Acknowledge the command to prevent timeout
     if not is_valid_fqdn(domain):
-        response = await ctx.respond("Invalid domain. Please provide a valid fully qualified domain name (FQDN).", ephemeral=False)
-        await schedule_deletion(response, ctx.channel.id)
+        response_message = await ctx.send_followup("Invalid domain. Please provide a valid fully qualified domain name (FQDN).")
+        await schedule_deletion(response_message)
         return
 
     url = cfg['doh_server']
-    headers = {"accept": "application/dns-json"}
-    params = {"name": domain, "type": record_type}
 
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            data = response.json()
+        # Construct the DNS query
+        query = dns.message.make_query(domain, record_type)
+        query_data = query.to_wire()
 
-            answers = data.get("Answer", [])
+        async with httpx.AsyncClient() as client:
+            # Make a POST request to the DoH server
+            response = await client.post(url, headers={"Content-Type": "application/dns-message"}, content=query_data)
+            response.raise_for_status()
+
+            # Parse the DNS response
+            response_message = dns.message.from_wire(response.content)
+            answers = response_message.answer
+
             if answers:
-                result = "\n".join(f"{answer['name']} {answer['type']} {answer['data']}" for answer in answers)
-                response = await ctx.respond(f'DNS {record_type} records for {domain}:\n```{result}```', ephemeral=False)
+                result = "\n".join(answer.to_text() for answer in answers)
+                response_message = await ctx.send_followup(f'DNS {record_type} records for {domain}:\n```{result}```')
             else:
-                response = await ctx.respond(f'No {record_type} records found for {domain}.', ephemeral=False)
-            await schedule_deletion(response, ctx.channel.id)
+                response_message = await ctx.send_followup(f'No {record_type} records found for {domain}.')
+            await schedule_deletion(response_message)
+    except httpx.HTTPStatusError as e:
+        logging.error(f"HTTP error occurred: {e}")
+        response_message = await ctx.send_followup(f'HTTP error occurred: {e}')
+        await schedule_deletion(response_message)
     except Exception as e:
         logging.error(f"Error fetching DNS records for {domain}: {e}")
-        response = await ctx.respond(f'An error occurred while fetching DNS records: {e}', ephemeral=False)
-        await schedule_deletion(response, ctx.channel.id)
+        response_message = await ctx.send_followup(f'An error occurred while fetching DNS records: {e}')
+        await schedule_deletion(response_message)
 
 @bot.slash_command(name=cfg['commands']['ping']['name'], description=cfg['commands']['ping']['description'])
 async def ping(ctx, target: str):
     if not is_valid_dualstack_input(target):
-        response = await ctx.respond("Invalid input. Please provide a valid IPv4, IPv6 address, or FQDN.", ephemeral=False)
-        await schedule_deletion(response, ctx.channel.id)
+        response_message = await ctx.send_followup("Invalid input. Please provide a valid IPv4, IPv6 address, or FQDN.")
+        await schedule_deletion(response_message)
         return
     await run_command(ctx, ['ping', '-c', str(cfg['ping_count']), target], f'ping {target}')
 
 @bot.slash_command(name=cfg['commands']['ping4']['name'], description=cfg['commands']['ping4']['description'])
 async def ping4(ctx, target: str):
     if not is_valid_v4_input(target):
-        response = await ctx.respond("Invalid input. Please provide a valid IPv4 address or FQDN.", ephemeral=False)
-        await schedule_deletion(response, ctx.channel.id)
+        response_message = await ctx.send_followup("Invalid input. Please provide a valid IPv4 address or FQDN.")
+        await schedule_deletion(response_message)
         return
     await run_command(ctx, ['ping', '-c', str(cfg['ping_count']), '-4', target], f'ping IPv4 {target}')
 
 @bot.slash_command(name=cfg['commands']['ping6']['name'], description=cfg['commands']['ping6']['description'])
 async def ping6(ctx, target: str):
     if not is_valid_v6_input(target):
-        response = await ctx.respond("Invalid input. Please provide a valid IPv6 address or FQDN.", ephemeral=False)
-        await schedule_deletion(response, ctx.channel.id)
+        response_message = await ctx.send_followup("Invalid input. Please provide a valid IPv6 address or FQDN.")
+        await schedule_deletion(response_message)
         return
     await run_command(ctx, ['ping', '-c', str(cfg['ping_count']), '-6', target], f'ping IPv6 {target}')
 
 @bot.slash_command(name=cfg['commands']['traceroute']['name'], description=cfg['commands']['traceroute']['description'])
 async def traceroute(ctx, target: str):
     if not is_valid_dualstack_input(target):
-        response = await ctx.respond("Invalid input. Please provide a valid IPv4, IPv6 address, or FQDN.", ephemeral=False)
-        await schedule_deletion(response, ctx.channel.id)
+        response_message = await ctx.send_followup("Invalid input. Please provide a valid IPv4, IPv6 address, or FQDN.")
+        await schedule_deletion(response_message)
         return
     await run_command(ctx, ['traceroute', target], f'traceroute {target}')
 
 @bot.slash_command(name=cfg['commands']['traceroute4']['name'], description=cfg['commands']['traceroute4']['description'])
 async def traceroute4(ctx, target: str):
     if not is_valid_v4_input(target):
-        response = await ctx.respond("Invalid input. Please provide a valid IPv4 address or FQDN.", ephemeral=False)
-        await schedule_deletion(response, ctx.channel.id)
+        response_message = await ctx.send_followup("Invalid input. Please provide a valid IPv4 address or FQDN.")
+        await schedule_deletion(response_message)
         return
     await run_command(ctx, ['traceroute', '-4', target], f'traceroute IPv4 {target}')
 
 @bot.slash_command(name=cfg['commands']['traceroute6']['name'], description=cfg['commands']['traceroute6']['description'])
 async def traceroute6(ctx, target: str):
     if not is_valid_v6_input(target):
-        response = await ctx.respond("Invalid input. Please provide a valid IPv6 address or FQDN.", ephemeral=False)
-        await schedule_deletion(response, ctx.channel.id)
+        response_message = await ctx.send_followup("Invalid input. Please provide a valid IPv6 address or FQDN.")
+        await schedule_deletion(response_message)
         return
     await run_command(ctx, ['traceroute', '-6', target], f'traceroute IPv6 {target}')
 

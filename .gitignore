@@ -3,5 +3,6 @@
 !.gitignore
 !*.md
 !*.py
+!config-example.yaml
 
 !requirements.txt

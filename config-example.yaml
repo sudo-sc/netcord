@@ -1,0 +1,40 @@
+bot_token: '' # Discord Bot Token (Bot > Token)
+client_id: '' # Discord Bot Client ID (OAuth2 > Client ID)
+allowed_channel_ids:
+  - 123456789 # Discord Channel ID
+doh_server: 'https://cloudflare-dns.com/dns-query' # DoH Server for dig command (default: Cloudflare).
+message_deletion_time: 300  # Time in seconds for result message deletion. 0 for do not delete.
+ping_count: 4  # Number of ping attempts.
+commands:
+  ping:
+    name: "ping" # Command name shown in Discord
+    description: "Ping a given IP address or FQDN." # Description shown in Discord
+    enable: true # Enable this function?
+  ping4:
+    name: "ping4"
+    description: "Ping a given IPv4 address or FQDN."
+    enable: true
+  ping6:
+    name: "ping6"
+    description: "Ping a given IPv6 address or FQDN."
+    enable: true
+  traceroute:
+    name: "traceroute"
+    description: "Traceroute to a given IP address or FQDN."
+    enable: true
+  traceroute4:
+    name: "traceroute4"
+    description: "Traceroute to a given IPv4 address or FQDN."
+    enable: true
+  traceroute6:
+    name: "traceroute6"
+    description: "Traceroute to a given IPv6 address or FQDN."
+    enable: true
+  dig_a:
+    name: "dig_a"
+    description: "Perform a DNS lookup for A records."
+    enable: true
+  dig_aaaa:
+    name: "dig_aaaa"
+    description: "Perform a DNS lookup for AAAA records."
+    enable: true

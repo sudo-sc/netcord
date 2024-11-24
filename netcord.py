@@ -107,50 +107,60 @@ async def dig_record(ctx, domain, record_type):
         response = await ctx.respond(f'An error occurred while fetching DNS records: {e}', ephemeral=False)
         await schedule_deletion(response, ctx.channel.id)
 
-# Dynamically create commands based on config
-for command_key, command_config in cfg['commands'].items():
-    if command_config['enable']:
-        @bot.slash_command(name=command_config['name'], description=command_config['description'])
-        async def command_handler(ctx, target: str):
-            if command_key.startswith('ping'):
-                if '4' in command_key:
-                    if not is_valid_v4_input(target):
-                        response = await ctx.respond("Invalid input. Please provide a valid IPv4 address or FQDN.", ephemeral=False)
-                        await schedule_deletion(response, ctx.channel.id)
-                        return
-                    await run_command(ctx, ['ping', '-c', str(cfg['ping_count']), '-4', target], f'ping IPv4 {target}')
-                elif '6' in command_key:
-                    if not is_valid_v6_input(target):
-                        response = await ctx.respond("Invalid input. Please provide a valid IPv6 address or FQDN.", ephemeral=False)
-                        await schedule_deletion(response, ctx.channel.id)
-                        return
-                    await run_command(ctx, ['ping', '-c', str(cfg['ping_count']), '-6', target], f'ping IPv6 {target}')
-                else:
-                    if not is_valid_dualstack_input(target):
-                        response = await ctx.respond("Invalid input. Please provide a valid IPv4, IPv6 address, or FQDN.", ephemeral=False)
-                        await schedule_deletion(response, ctx.channel.id)
-                        return
-                    await run_command(ctx, ['ping', '-c', str(cfg['ping_count']), target], f'ping {target}')
-            elif command_key.startswith('traceroute'):
-                if '4' in command_key:
-                    if not is_valid_v4_input(target):
-                        response = await ctx.respond("Invalid input. Please provide a valid IPv4 address or FQDN.", ephemeral=False)
-                        await schedule_deletion(response, ctx.channel.id)
-                        return
-                    await run_command(ctx, ['traceroute', '-4', target], f'traceroute IPv4 {target}')
-                elif '6' in command_key:
-                    if not is_valid_v6_input(target):
-                        response = await ctx.respond("Invalid input. Please provide a valid IPv6 address or FQDN.", ephemeral=False)
-                        await schedule_deletion(response, ctx.channel.id)
-                        return
-                    await run_command(ctx, ['traceroute', '-6', target], f'traceroute IPv6 {target}')
-                else:
-                    if not is_valid_dualstack_input(target):
-                        response = await ctx.respond("Invalid input. Please provide a valid IPv4, IPv6 address, or FQDN.", ephemeral=False)
-                        await schedule_deletion(response, ctx.channel.id)
-                        return
-                    await run_command(ctx, ['traceroute', target], f'traceroute {target}')
-            elif command_key in ['dig_a', 'dig_aaaa']:
-                await dig_record(ctx, target, 'A' if command_key == 'dig_a' else 'AAAA')
+@bot.slash_command(name=cfg['commands']['ping']['name'], description=cfg['commands']['ping']['description'])
+async def ping(ctx, target: str):
+    if not is_valid_dualstack_input(target):
+        response = await ctx.respond("Invalid input. Please provide a valid IPv4, IPv6 address, or FQDN.", ephemeral=False)
+        await schedule_deletion(response, ctx.channel.id)
+        return
+    await run_command(ctx, ['ping', '-c', str(cfg['ping_count']), target], f'ping {target}')
+
+@bot.slash_command(name=cfg['commands']['ping4']['name'], description=cfg['commands']['ping4']['description'])
+async def ping4(ctx, target: str):
+    if not is_valid_v4_input(target):
+        response = await ctx.respond("Invalid input. Please provide a valid IPv4 address or FQDN.", ephemeral=False)
+        await schedule_deletion(response, ctx.channel.id)
+        return
+    await run_command(ctx, ['ping', '-c', str(cfg['ping_count']), '-4', target], f'ping IPv4 {target}')
+
+@bot.slash_command(name=cfg['commands']['ping6']['name'], description=cfg['commands']['ping6']['description'])
+async def ping6(ctx, target: str):
+    if not is_valid_v6_input(target):
+        response = await ctx.respond("Invalid input. Please provide a valid IPv6 address or FQDN.", ephemeral=False)
+        await schedule_deletion(response, ctx.channel.id)
+        return
+    await run_command(ctx, ['ping', '-c', str(cfg['ping_count']), '-6', target], f'ping IPv6 {target}')
+
+@bot.slash_command(name=cfg['commands']['traceroute']['name'], description=cfg['commands']['traceroute']['description'])
+async def traceroute(ctx, target: str):
+    if not is_valid_dualstack_input(target):
+        response = await ctx.respond("Invalid input. Please provide a valid IPv4, IPv6 address, or FQDN.", ephemeral=False)
+        await schedule_deletion(response, ctx.channel.id)
+        return
+    await run_command(ctx, ['traceroute', target], f'traceroute {target}')
+
+@bot.slash_command(name=cfg['commands']['traceroute4']['name'], description=cfg['commands']['traceroute4']['description'])
+async def traceroute4(ctx, target: str):
+    if not is_valid_v4_input(target):
+        response = await ctx.respond("Invalid input. Please provide a valid IPv4 address or FQDN.", ephemeral=False)
+        await schedule_deletion(response, ctx.channel.id)
+        return
+    await run_command(ctx, ['traceroute', '-4', target], f'traceroute IPv4 {target}')
+
+@bot.slash_command(name=cfg['commands']['traceroute6']['name'], description=cfg['commands']['traceroute6']['description'])
+async def traceroute6(ctx, target: str):
+    if not is_valid_v6_input(target):
+        response = await ctx.respond("Invalid input. Please provide a valid IPv6 address or FQDN.", ephemeral=False)
+        await schedule_deletion(response, ctx.channel.id)
+        return
+    await run_command(ctx, ['traceroute', '-6', target], f'traceroute IPv6 {target}')
+
+@bot.slash_command(name=cfg['commands']['dig_a']['name'], description=cfg['commands']['dig_a']['description'])
+async def dig_a(ctx, domain: str):
+    await dig_record(ctx, domain, 'A')
+
+@bot.slash_command(name=cfg['commands']['dig_aaaa']['name'], description=cfg['commands']['dig_aaaa']['description'])
+async def dig_aaaa(ctx, domain: str):
+    await dig_record(ctx, domain, 'AAAA')
 
 bot.run(cfg["bot_token"])

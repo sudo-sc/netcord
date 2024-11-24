@@ -1,5 +1,7 @@
 *
 
 !.gitignore
-!netcord.py
-!README.md
+!*.md
+!*.py
+
+!requirements.txt
